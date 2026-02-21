@@ -1,0 +1,104 @@
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+import statsmodels.api as sm
+
+# ----------------------------
+# GENERAR DATASET - LAS VARAS
+# ----------------------------
+
+np.random.seed(42)
+
+n = 500
+
+id_cliente = np.arange(1, n+1)
+
+edad = np.random.normal(35, 10, n).astype(int)
+edad = np.clip(edad, 18, 70)
+
+genero = np.random.choice(['Femenino', 'Masculino'], n, p=[0.55, 0.45])
+comuna = np.random.choice(['Lo Barnechea', 'Vitacura', 'Providencia', 'Las Condes'], n)
+canal_compra = np.random.choice(['Web', 'App', 'WhatsApp'], n, p=[0.4, 0.4, 0.2])
+
+numero_visitas = np.random.poisson(20, n)
+numero_compras = (numero_visitas * np.random.uniform(0.2, 0.5, n)).astype(int)
+
+# Ticket promedio en CLP
+ticket_promedio = np.random.normal(35000, 8000, n)
+
+# Clientes que usan App gastan más
+ticket_promedio += np.where(canal_compra == 'App', 10000, 0)
+
+monto_total = numero_compras * ticket_promedio
+
+# Clientes VIP (outliers)
+outliers = np.random.choice(n, 5)
+monto_total[outliers] *= 4
+
+# Productos dañados (no hay devoluciones en alimentos)
+productos_dañados = np.random.binomial(numero_compras, 0.1)
+
+# La calificación baja si hay productos dañados
+calificacion = 5 - (productos_dañados * 0.3) + np.random.normal(0, 0.3, n)
+calificacion = np.clip(calificacion, 1, 5)
+
+df = pd.DataFrame({
+    'id_cliente': id_cliente,
+    'edad': edad,
+    'genero': genero,
+    'comuna': comuna,
+    'canal_compra': canal_compra,
+    'numero_visitas': numero_visitas,
+    'numero_compras': numero_compras,
+    'monto_total_clp': monto_total.astype(int),
+    'productos_dañados': productos_dañados,
+    'calificacion': calificacion.round(2)
+})
+
+df.to_csv("lasvaras_clientes_clp.csv", index=False)
+
+print(df.info())
+print(df.describe())
+
+# ----------------------------
+# GRAFICOS
+# ----------------------------
+
+df.hist(figsize=(10,8))
+plt.tight_layout()
+plt.show()
+
+plt.figure()
+sns.boxplot(x=df['monto_total_clp'])
+plt.title("Boxplot Monto Total (CLP)")
+plt.show()
+
+plt.figure()
+corr = df.corr(numeric_only=True)
+sns.heatmap(corr, annot=True, cmap="coolwarm")
+plt.title("Matriz de Correlación")
+plt.show()
+
+plt.figure()
+sns.violinplot(x='genero', y='monto_total_clp', data=df)
+plt.title("Monto Total por Género")
+plt.show()
+
+sns.pairplot(df)
+plt.show()
+
+sns.jointplot(x='numero_visitas', y='monto_total_clp', data=df)
+plt.show()
+
+# ----------------------------
+# REGRESIÓN
+# ----------------------------
+
+X = df[['numero_visitas']]
+y = df['monto_total_clp']
+
+X = sm.add_constant(X)
+modelo = sm.OLS(y, X).fit()
+
+print(modelo.summary())
